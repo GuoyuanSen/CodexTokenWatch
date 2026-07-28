@@ -5,6 +5,8 @@ struct UsageDashboard: View {
     @AppStorage(AppSettings.appearanceKey) private var appearanceModeValue = AppearanceMode.dark.rawValue
     @AppStorage(AppSettings.languageKey) private var languageValue = AppLanguage.english.rawValue
     @AppStorage(AppSettings.accountPlanKey) private var accountPlanValue = AccountPlanMode.automatic.rawValue
+    @State private var showingCustomRefreshInterval = false
+    @State private var customRefreshIntervalText = ""
 
     private var appearanceMode: AppearanceMode {
         AppearanceMode(rawValue: appearanceModeValue) ?? .dark
@@ -46,6 +48,9 @@ struct UsageDashboard: View {
             }
         } message: {
             Text(store.errorMessage ?? "")
+        }
+        .sheet(isPresented: $showingCustomRefreshInterval) {
+            customRefreshIntervalSheet
         }
     }
 
@@ -131,11 +136,50 @@ struct UsageDashboard: View {
             }
 
             Divider()
+            Text(language.text("Refresh", "刷新"))
             Toggle(isOn: $store.automaticRefreshEnabled) {
                 Label(
                     language.text("Smart auto-refresh", "智能自动刷新"),
                     systemImage: "bolt.horizontal.circle"
                 )
+            }
+            Toggle(isOn: $store.periodicRefreshEnabled) {
+                Label(
+                    language.text("Timed refresh", "定时刷新"),
+                    systemImage: "timer"
+                )
+            }
+            if store.periodicRefreshEnabled {
+                Menu {
+                    ForEach(Self.refreshIntervalPresets, id: \.self) { minutes in
+                        Button {
+                            store.periodicRefreshMinutes = minutes
+                        } label: {
+                            selectionLabel(
+                                refreshIntervalTitle(minutes),
+                                selected: store.periodicRefreshMinutes == minutes
+                            )
+                        }
+                    }
+                    Divider()
+                    Button {
+                        customRefreshIntervalText = String(store.periodicRefreshMinutes)
+                        showingCustomRefreshInterval = true
+                    } label: {
+                        Label(
+                            language.text("Custom…", "自定义…"),
+                            systemImage: "slider.horizontal.3"
+                        )
+                    }
+                } label: {
+                    Label(
+                        language.text(
+                            "Every \(refreshIntervalTitle(store.periodicRefreshMinutes))",
+                            "每 \(refreshIntervalTitle(store.periodicRefreshMinutes))"
+                        ),
+                        systemImage: "clock.arrow.circlepath"
+                    )
+                }
             }
             Toggle(isOn: $store.resetReminderEnabled) {
                 Label(
@@ -150,6 +194,68 @@ struct UsageDashboard: View {
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help(language.text("Settings", "设置"))
+    }
+
+    private static let refreshIntervalPresets = [1, 2, 5, 10, 15, 30, 60]
+
+    private func refreshIntervalTitle(_ minutes: Int) -> String {
+        if minutes == 60 {
+            return language.text("1 hour", "1 小时")
+        }
+        return language.text("\(minutes) min", "\(minutes) 分钟")
+    }
+
+    private var customRefreshInterval: Int? {
+        guard let value = Int(customRefreshIntervalText),
+              (AppSettings.minimumPeriodicRefreshMinutes...AppSettings.maximumPeriodicRefreshMinutes)
+                .contains(value)
+        else {
+            return nil
+        }
+        return value
+    }
+
+    private var customRefreshIntervalSheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(language.text("Custom refresh interval", "自定义刷新间隔"))
+                .font(.headline)
+            Text(
+                language.text(
+                    "Enter a value from 1 to 1440 minutes.",
+                    "请输入 1–1440 分钟之间的数值。"
+                )
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            HStack {
+                TextField(
+                    language.text("Minutes", "分钟"),
+                    text: $customRefreshIntervalText
+                )
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 110)
+                Text(language.text("minutes", "分钟"))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Spacer()
+                Button(language.text("Cancel", "取消")) {
+                    showingCustomRefreshInterval = false
+                }
+                Button(language.text("Save", "保存")) {
+                    guard let customRefreshInterval else { return }
+                    store.periodicRefreshMinutes = customRefreshInterval
+                    showingCustomRefreshInterval = false
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(customRefreshInterval == nil)
+            }
+        }
+        .padding(20)
+        .frame(width: 310)
+        .preferredColorScheme(appearanceMode.colorScheme)
     }
 
     @ViewBuilder
@@ -372,13 +478,9 @@ struct UsageDashboard: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 5) {
                 Circle()
-                    .fill(store.automaticRefreshEnabled ? Color.green : Color.secondary)
+                    .fill(refreshStatusColor)
                     .frame(width: 6, height: 6)
-                Text(
-                    store.automaticRefreshEnabled
-                        ? language.text("Smart refresh is active", "智能刷新已开启")
-                        : language.text("Smart refresh is off", "智能刷新已关闭")
-                )
+                Text(refreshStatusText)
             }
             Text(
                 language.text(
@@ -395,6 +497,29 @@ struct UsageDashboard: View {
         }
         .font(.caption2)
         .foregroundStyle(.secondary)
+    }
+
+    private var refreshStatusColor: Color {
+        store.automaticRefreshEnabled || store.periodicRefreshEnabled ? .green : .secondary
+    }
+
+    private var refreshStatusText: String {
+        switch (store.automaticRefreshEnabled, store.periodicRefreshEnabled) {
+        case (true, true):
+            return language.text(
+                "Smart refresh + every \(refreshIntervalTitle(store.periodicRefreshMinutes))",
+                "智能刷新 + 每 \(refreshIntervalTitle(store.periodicRefreshMinutes))"
+            )
+        case (true, false):
+            return language.text("Smart refresh is active", "智能刷新已开启")
+        case (false, true):
+            return language.text(
+                "Timed refresh every \(refreshIntervalTitle(store.periodicRefreshMinutes))",
+                "每 \(refreshIntervalTitle(store.periodicRefreshMinutes))定时刷新"
+            )
+        case (false, false):
+            return language.text("Automatic refresh is off", "自动刷新已关闭")
+        }
     }
 
     private func updateDescription(reference: Date) -> String {
