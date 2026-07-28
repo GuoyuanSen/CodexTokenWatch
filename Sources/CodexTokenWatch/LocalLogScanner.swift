@@ -35,10 +35,14 @@ final class LocalLogScanner: @unchecked Sendable {
             return .empty
         }
 
-        let calendar = Calendar.current
+        var calendar = Calendar(identifier: .iso8601)
+        calendar.timeZone = .current
         let now = Date.now
         let startOfToday = calendar.startOfDay(for: now)
         let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: startOfToday) ?? startOfToday
+        let previousDayComparableEnd = startOfYesterday.addingTimeInterval(
+            now.timeIntervalSince(startOfToday)
+        )
         let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? startOfToday
         let startOfPreviousWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: startOfWeek) ?? startOfWeek
         let previousWeekComparableEnd = startOfPreviousWeek.addingTimeInterval(
@@ -76,7 +80,8 @@ final class LocalLogScanner: @unchecked Sendable {
                 allTime.add(event.tokens)
                 if event.timestamp >= startOfWeek { week.add(event.tokens) }
                 if event.timestamp >= startOfToday { today.add(event.tokens) }
-                if event.timestamp >= startOfYesterday, event.timestamp < startOfToday {
+                if event.timestamp >= startOfYesterday,
+                   event.timestamp < previousDayComparableEnd {
                     yesterday.add(event.tokens)
                 }
                 if event.timestamp >= startOfPreviousWeek,
