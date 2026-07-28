@@ -1,8 +1,12 @@
-import Charts
 import SwiftUI
 
 struct UsageDashboard: View {
     @ObservedObject var store: UsageStore
+    @AppStorage("appearanceMode") private var appearanceModeValue = AppearanceMode.system.rawValue
+
+    private var appearanceMode: AppearanceMode {
+        AppearanceMode(rawValue: appearanceModeValue) ?? .system
+    }
 
     var body: some View {
         ScrollView {
@@ -10,13 +14,13 @@ struct UsageDashboard: View {
                 header
                 allowanceSection
                 summaryCards
-                trendSection
                 compositionSection
                 footer
             }
             .padding(18)
         }
-        .frame(width: 420, height: 610)
+        .frame(width: 420, height: 500)
+        .preferredColorScheme(appearanceMode.colorScheme)
         .alert("CodexTokenWatch", isPresented: Binding(
             get: { store.errorMessage != nil },
             set: { if !$0 { store.errorMessage = nil } }
@@ -37,6 +41,26 @@ struct UsageDashboard: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            Menu {
+                ForEach(AppearanceMode.allCases) { mode in
+                    Button {
+                        appearanceModeValue = mode.rawValue
+                    } label: {
+                        if appearanceMode == mode {
+                            Label(mode.title, systemImage: "checkmark")
+                        } else {
+                            Text(mode.title)
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: appearanceMode.icon)
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Appearance")
+
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 Button(action: store.refresh) {
                     HStack(spacing: 5) {
@@ -85,39 +109,32 @@ struct UsageDashboard: View {
 
     private var summaryCards: some View {
         HStack(spacing: 10) {
-            MetricCard(title: "Today", value: store.snapshot.today.total, tint: .blue)
-            MetricCard(title: "This week", value: store.snapshot.week.total, tint: .green)
+            MetricCard(
+                title: "Today",
+                value: store.snapshot.today.total,
+                tint: .blue,
+                comparison: UsageComparison(
+                    current: store.snapshot.today.total,
+                    previous: store.snapshot.yesterday.total,
+                    currentPeriod: "Today",
+                    period: "yesterday",
+                    previousPeriodTitle: "Yesterday"
+                )
+            )
+            MetricCard(
+                title: "This week",
+                value: store.snapshot.week.total,
+                tint: .green,
+                comparison: UsageComparison(
+                    current: store.snapshot.week.total,
+                    previous: store.snapshot.previousWeek.total,
+                    currentPeriod: "This week",
+                    period: "last week",
+                    previousPeriodTitle: "Same period last week"
+                )
+            )
             MetricCard(title: "All local", value: store.snapshot.allTime.total, tint: .purple)
         }
-    }
-
-    private var trendSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("14-day token activity")
-                .font(.headline)
-            Chart(store.snapshot.daily) { point in
-                AreaMark(
-                    x: .value("Day", point.date, unit: .day),
-                    y: .value("Tokens", point.tokens)
-                )
-                .foregroundStyle(.blue.opacity(0.16))
-                LineMark(
-                    x: .value("Day", point.date, unit: .day),
-                    y: .value("Tokens", point.tokens)
-                )
-                .foregroundStyle(.blue)
-                .interpolationMethod(.catmullRom)
-            }
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .day, count: 3)) {
-                    AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                }
-            }
-            .chartYAxis(.hidden)
-            .frame(height: 105)
-        }
-        .padding(12)
-        .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var compositionSection: some View {
@@ -181,6 +198,38 @@ struct UsageDashboard: View {
         }
         .font(.caption2)
         .foregroundStyle(.secondary)
+    }
+}
+
+private enum AppearanceMode: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .system: "circle.lefthalf.filled"
+        case .light: "sun.max.fill"
+        case .dark: "moon.fill"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
     }
 }
 
@@ -350,6 +399,7 @@ private struct MetricCard: View {
     let title: String
     let value: Int
     let tint: Color
+    var comparison: UsageComparison?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -358,12 +408,70 @@ private struct MetricCard: View {
                 .foregroundStyle(.secondary)
             Text(TokenFormatter.compact(value))
                 .font(.headline.monospacedDigit())
-            Text("tokens")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            if let comparison {
+                Label(comparison.label, systemImage: comparison.icon)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(comparison.tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 3)
+                    .background(comparison.tint.opacity(0.11), in: Capsule())
+                    .help(comparison.help)
+            } else {
+                Text("tokens")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 3)
+            }
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+        .help(comparison?.help ?? "\(title): \(value.formatted()) tokens")
+    }
+}
+
+private struct UsageComparison {
+    let current: Int
+    let previous: Int
+    let currentPeriod: String
+    let period: String
+    let previousPeriodTitle: String
+
+    private var change: Double? {
+        guard previous > 0 else { return nil }
+        return (Double(current - previous) / Double(previous)) * 100
+    }
+
+    var label: String {
+        guard let change else {
+            return current > 0 ? "New vs \(period)" : "No change"
+        }
+        return "\(Int(abs(change).rounded()))% vs \(period)"
+    }
+
+    var icon: String {
+        guard let change else { return current > 0 ? "sparkles" : "minus" }
+        if change > 0.5 { return "arrow.up" }
+        if change < -0.5 { return "arrow.down" }
+        return "minus"
+    }
+
+    var tint: Color {
+        guard let change else { return current > 0 ? .green : .secondary }
+        if change > 0.5 { return .green }
+        if change < -0.5 { return .blue }
+        return .secondary
+    }
+
+    var help: String {
+        let difference = current - previous
+        let sign = difference > 0 ? "+" : ""
+        return """
+        \(currentPeriod): \(current.formatted()) tokens
+        \(previousPeriodTitle): \(previous.formatted()) tokens
+        Difference: \(sign)\(difference.formatted()) tokens
+        """
     }
 }
