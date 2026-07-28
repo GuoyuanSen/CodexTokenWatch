@@ -274,7 +274,10 @@ struct UsageDashboard: View {
                     previous: store.snapshot.yesterday.total,
                     currentPeriod: language.text("Today", "今日"),
                     period: language.text("yesterday", "昨日"),
-                    previousPeriodTitle: language.text("Yesterday", "昨日"),
+                    previousPeriodTitle: language.text(
+                        "Yesterday at the same time",
+                        "昨日同期"
+                    ),
                     language: language
                 ),
                 language: language
