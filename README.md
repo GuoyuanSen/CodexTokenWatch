@@ -10,6 +10,10 @@ An independently implemented macOS 13+ menu-bar app for inspecting local Codex u
   <br>当本地日志中存在速率限制数据时，显示五小时和每周额度卡片
 - Green/yellow/red menu-bar status lights based on remaining allowance
   <br>根据剩余额度显示绿、黄、红三色菜单栏状态指示灯
+- Reset-time and projected run-out guidance for each allowance window
+  <br>显示各额度窗口的预计重置时间，并预测是否可能在重置前用尽
+- A live freshness label and one-click refresh from local logs
+  <br>显示数据更新时间，并支持一键读取最新本机日志
 - Today, this week, and all-local token totals
   <br>显示今日、本周及本机累计 Token 总量
 - A 14-day activity chart
