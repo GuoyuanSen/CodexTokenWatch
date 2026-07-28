@@ -1,13 +1,17 @@
 # CodexTokenWatch
 
-A standalone macOS menu-bar app for estimating local Codex token activity. It reads local JSON/JSONL session files only; it never sends logs or usage data anywhere.
+An independently implemented macOS 13+ menu-bar app for inspecting local Codex usage. It reads `~/.codex/sessions` only and never uploads session content or usage data.
 
-## What it shows
+## Features
 
-- Today's, this week's, and all-time token totals
-- A breakdown of input, cached input, and output tokens
-- A compact menu-bar indicator with the current week's activity
-- A refresh action and a launch-at-login option
+- Five-hour and weekly allowance cards when rate-limit data exists in local logs
+- Green/yellow/red menu-bar status lights based on remaining allowance
+- Today, this week, and all-local token totals
+- A 14-day activity chart
+- Uncached input, cached input, and output composition
+- A local equivalent-credit estimate
+- Manual refresh, five-minute background refresh, launch at login, and quit actions
+- Duplicate usage-event detection for copied or forked session history
 
 ## Build and run
 
@@ -21,4 +25,11 @@ To build an optimized binary:
 swift build -c release
 ```
 
-The scanner looks in `~/.codex` and accepts JSON or JSONL records containing common token fields such as `input_tokens`, `cached_input_tokens`, and `output_tokens`. This is an estimate: Codex may change its local log format, and official usage pages remain authoritative.
+The scanner uses incremental `last_token_usage` events and rate-limit windows from Codex JSONL logs. Values are estimates: local files may be incomplete and Codex may change its log format. Official Codex usage remains authoritative.
+
+## Privacy
+
+- No network calls
+- No API keys
+- No log contents leave the Mac
+- Only token counters, timestamps, and rate-limit fields are aggregated in memory
