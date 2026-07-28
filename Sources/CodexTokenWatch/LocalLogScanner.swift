@@ -4,7 +4,6 @@ final class LocalLogScanner: @unchecked Sendable {
     private struct ParsedEvent {
         let timestamp: Date
         let tokens: TokenTotals
-        let fiveHour: RateWindow?
         let weekly: RateWindow?
         let identity: String
     }
@@ -53,7 +52,6 @@ final class LocalLogScanner: @unchecked Sendable {
         var allTime = TokenTotals.zero
         var seen = Set<String>()
         var latestRateTimestamp = Date.distantPast
-        var latestFiveHour: RateWindow?
         var latestWeekly: RateWindow?
         var fileCount = 0
         var eventCount = 0
@@ -87,9 +85,8 @@ final class LocalLogScanner: @unchecked Sendable {
                 }
 
                 if event.timestamp >= latestRateTimestamp,
-                   event.fiveHour != nil || event.weekly != nil {
+                   event.weekly != nil {
                     latestRateTimestamp = event.timestamp
-                    if let fiveHour = event.fiveHour { latestFiveHour = fiveHour }
                     if let weekly = event.weekly { latestWeekly = weekly }
                 }
             }
@@ -101,8 +98,8 @@ final class LocalLogScanner: @unchecked Sendable {
             week: week,
             previousWeek: previousWeek,
             allTime: allTime,
-            fiveHour: latestFiveHour,
             weekly: latestWeekly,
+            account: AccountInfoLoader.load(),
             filesScanned: fileCount,
             eventsCounted: eventCount,
             updatedAt: .now
@@ -182,15 +179,12 @@ final class LocalLogScanner: @unchecked Sendable {
         )
         guard tokens.total > 0 else { return nil }
 
-        var fiveHour: RateWindow?
         var weekly: RateWindow?
         if let limits = payload["rate_limits"] as? [String: Any] {
             for key in ["primary", "secondary"] {
                 guard let raw = limits[key] as? [String: Any],
                       let window = parseRateWindow(raw) else { continue }
-                if window.windowMinutes <= 300 {
-                    fiveHour = window
-                } else {
+                if window.windowMinutes > 300 {
                     weekly = window
                 }
             }
@@ -206,7 +200,6 @@ final class LocalLogScanner: @unchecked Sendable {
         return ParsedEvent(
             timestamp: timestamp,
             tokens: tokens,
-            fiveHour: fiveHour,
             weekly: weekly,
             identity: identity
         )
