@@ -37,12 +37,28 @@ struct UsageDashboard: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button(action: store.refresh) {
-                Image(systemName: "arrow.clockwise")
-                    .rotationEffect(store.isRefreshing ? .degrees(180) : .zero)
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                Button(action: store.refresh) {
+                    HStack(spacing: 5) {
+                        if store.isRefreshing {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        Text(
+                            store.isRefreshing
+                                ? "Updating…"
+                                : store.snapshot.updateDescription(reference: context.date)
+                        )
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(store.isRefreshing)
+                .help("Refresh from local Codex logs")
             }
-            .buttonStyle(.borderless)
-            .disabled(store.isRefreshing)
         }
     }
 
@@ -273,10 +289,31 @@ private struct CompositionLegendRow: View {
 private struct AllowanceCard: View {
     let limit: RateWindow
 
+    private var forecast: RateForecast {
+        limit.forecast()
+    }
+
     private var tint: Color {
         if limit.remainingPercent >= 70 { return .green }
         if limit.remainingPercent > 10 { return .yellow }
         return .red
+    }
+
+    private var forecastTint: Color {
+        switch forecast.state {
+        case .learning, .stale: .secondary
+        case .likelySafe: .green
+        case .atRisk: .orange
+        }
+    }
+
+    private var forecastIcon: String {
+        switch forecast.state {
+        case .learning: "waveform.path.ecg"
+        case .likelySafe: "checkmark.circle.fill"
+        case .atRisk: "exclamationmark.triangle.fill"
+        case .stale: "clock.badge.questionmark"
+        }
     }
 
     var body: some View {
@@ -288,9 +325,20 @@ private struct AllowanceCard: View {
                 .font(.title2.bold().monospacedDigit())
             ProgressView(value: limit.remainingPercent, total: 100)
                 .tint(tint)
-            Text(limit.resetDescription)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Label(limit.resetCountdown(), systemImage: "clock.arrow.circlepath")
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 2)
+                Label(forecast.label, systemImage: forecastIcon)
+                    .foregroundStyle(forecastTint)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(forecastTint.opacity(0.11), in: Capsule())
+            }
+            .font(.caption2)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .help("\(limit.resetDescription())\n\(forecast.detail)")
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
