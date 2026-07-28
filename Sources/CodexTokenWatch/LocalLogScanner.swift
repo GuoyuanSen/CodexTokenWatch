@@ -37,14 +37,20 @@ final class LocalLogScanner: @unchecked Sendable {
         }
 
         let calendar = Calendar.current
-        let startOfToday = calendar.startOfDay(for: .now)
-        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: .now)?.start ?? startOfToday
-        let startOfTrend = calendar.date(byAdding: .day, value: -13, to: startOfToday) ?? startOfToday
+        let now = Date.now
+        let startOfToday = calendar.startOfDay(for: now)
+        let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: startOfToday) ?? startOfToday
+        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? startOfToday
+        let startOfPreviousWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: startOfWeek) ?? startOfWeek
+        let previousWeekComparableEnd = startOfPreviousWeek.addingTimeInterval(
+            now.timeIntervalSince(startOfWeek)
+        )
 
         var today = TokenTotals.zero
+        var yesterday = TokenTotals.zero
         var week = TokenTotals.zero
+        var previousWeek = TokenTotals.zero
         var allTime = TokenTotals.zero
-        var dailyTotals: [Date: TokenTotals] = [:]
         var seen = Set<String>()
         var latestRateTimestamp = Date.distantPast
         var latestFiveHour: RateWindow?
@@ -72,9 +78,12 @@ final class LocalLogScanner: @unchecked Sendable {
                 allTime.add(event.tokens)
                 if event.timestamp >= startOfWeek { week.add(event.tokens) }
                 if event.timestamp >= startOfToday { today.add(event.tokens) }
-                if event.timestamp >= startOfTrend {
-                    let day = calendar.startOfDay(for: event.timestamp)
-                    dailyTotals[day, default: .zero].add(event.tokens)
+                if event.timestamp >= startOfYesterday, event.timestamp < startOfToday {
+                    yesterday.add(event.tokens)
+                }
+                if event.timestamp >= startOfPreviousWeek,
+                   event.timestamp < previousWeekComparableEnd {
+                    previousWeek.add(event.tokens)
                 }
 
                 if event.timestamp >= latestRateTimestamp,
@@ -86,16 +95,12 @@ final class LocalLogScanner: @unchecked Sendable {
             }
         }
 
-        let daily = (0..<14).compactMap { offset -> UsagePoint? in
-            guard let day = calendar.date(byAdding: .day, value: offset - 13, to: startOfToday) else { return nil }
-            return UsagePoint(date: day, tokens: dailyTotals[day]?.total ?? 0)
-        }
-
         return UsageSnapshot(
             today: today,
+            yesterday: yesterday,
             week: week,
+            previousWeek: previousWeek,
             allTime: allTime,
-            daily: daily,
             fiveHour: latestFiveHour,
             weekly: latestWeekly,
             filesScanned: fileCount,
