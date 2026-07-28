@@ -4,8 +4,14 @@ enum AppSettings {
     static let appearanceKey = "appearanceMode"
     static let languageKey = "appLanguage"
     static let automaticRefreshKey = "automaticRefreshEnabled"
+    static let periodicRefreshEnabledKey = "periodicRefreshEnabled"
+    static let periodicRefreshMinutesKey = "periodicRefreshMinutes"
     static let resetReminderKey = "resetReminderEnabled"
     static let accountPlanKey = "accountPlanOverride"
+
+    static let defaultPeriodicRefreshMinutes = 5
+    static let minimumPeriodicRefreshMinutes = 1
+    static let maximumPeriodicRefreshMinutes = 1_440
 }
 
 enum AccountPlanMode: String, CaseIterable, Identifiable {
