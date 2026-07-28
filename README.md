@@ -16,8 +16,8 @@ An independently implemented macOS 13+ menu-bar app for inspecting local Codex u
   <br>智能感知本机日志变化，并支持手动刷新
 - Today, this week, and all-local token totals in a compact popover
   <br>显示今日、本周及本机累计 Token 总量
-- Compact today-versus-yesterday and week-to-date comparisons
-  <br>以简洁标签对比今日与昨日，以及本周一至今与上周同期用量
+- Comparable-period usage: today versus the same time yesterday, and Monday-to-date versus the same period last week
+  <br>按相同时段对比今日与昨日，以及本周一至今与上周同期用量
 - High-contrast light and dark appearance modes
   <br>支持高对比度浅色和深色外观
 - English and Chinese interface switching
