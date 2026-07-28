@@ -12,8 +12,8 @@ An independently implemented macOS 13+ menu-bar app for inspecting local Codex u
   <br>根据剩余额度显示绿、黄、红三色菜单栏状态指示灯
 - Reset-time and projected run-out guidance for each allowance window
   <br>显示各额度窗口的预计重置时间，并预测是否可能在重置前用尽
-- Smart local-log change detection, a five-minute fallback refresh, and manual refresh
-  <br>智能感知本机日志变化，并支持五分钟兜底刷新和手动刷新
+- Smart local-log change detection and manual refresh
+  <br>智能感知本机日志变化，并支持手动刷新
 - Today, this week, and all-local token totals in a compact popover
   <br>显示今日、本周及本机累计 Token 总量
 - Compact today-versus-yesterday and week-to-date comparisons
@@ -24,6 +24,8 @@ An independently implemented macOS 13+ menu-bar app for inspecting local Codex u
   <br>支持中文和英文界面切换
 - Local account name, email, and plan display without exposing credentials
   <br>安全显示本机账号名称、邮箱和套餐，不展示任何凭据
+- Automatic plan detection with a persistent Free, Plus, or Pro override for stale login metadata
+  <br>自动识别套餐，并可在登录元数据过期时记住手动选择的 Free、Plus 或 Pro
 - Optional macOS notification 10 minutes before the weekly reset
   <br>可选择在每周额度重置前 10 分钟接收 macOS 通知
 - Uncached input, cached input, and output composition
