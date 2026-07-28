@@ -2,33 +2,52 @@ import SwiftUI
 
 struct UsageDashboard: View {
     @ObservedObject var store: UsageStore
-    @AppStorage("appearanceMode") private var appearanceModeValue = AppearanceMode.system.rawValue
+    @AppStorage(AppSettings.appearanceKey) private var appearanceModeValue = AppearanceMode.dark.rawValue
+    @AppStorage(AppSettings.languageKey) private var languageValue = AppLanguage.english.rawValue
 
     private var appearanceMode: AppearanceMode {
-        AppearanceMode(rawValue: appearanceModeValue) ?? .system
+        AppearanceMode(rawValue: appearanceModeValue) ?? .dark
+    }
+
+    private var language: AppLanguage {
+        AppLanguage(rawValue: languageValue) ?? .english
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                allowanceSection
-                summaryCards
-                compositionSection
-                footer
+        ZStack {
+            backgroundColor
+                .ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    header
+                    accountSection
+                    allowanceSection
+                    summaryCards
+                    compositionSection
+                    footer
+                }
+                .padding(18)
             }
-            .padding(18)
         }
-        .frame(width: 420, height: 500)
+        .frame(width: 420, height: 540)
         .preferredColorScheme(appearanceMode.colorScheme)
         .alert("CodexTokenWatch", isPresented: Binding(
             get: { store.errorMessage != nil },
             set: { if !$0 { store.errorMessage = nil } }
         )) {
-            Button("OK", role: .cancel) { store.errorMessage = nil }
+            Button(language.text("OK", "确定"), role: .cancel) {
+                store.errorMessage = nil
+            }
         } message: {
             Text(store.errorMessage ?? "")
         }
+    }
+
+    private var backgroundColor: Color {
+        appearanceMode == .dark
+            ? Color(red: 0.075, green: 0.075, blue: 0.085)
+            : Color(nsColor: .windowBackgroundColor)
     }
 
     private var header: some View {
@@ -36,30 +55,13 @@ struct UsageDashboard: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("CodexTokenWatch")
                     .font(.title2.bold())
-                Text("Local-only usage estimate")
+                Text(language.text("Local-only usage estimate", "仅限本机的用量估算"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Menu {
-                ForEach(AppearanceMode.allCases) { mode in
-                    Button {
-                        appearanceModeValue = mode.rawValue
-                    } label: {
-                        if appearanceMode == mode {
-                            Label(mode.title, systemImage: "checkmark")
-                        } else {
-                            Text(mode.title)
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: appearanceMode.icon)
-                    .foregroundStyle(.secondary)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Appearance")
+
+            settingsMenu
 
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 Button(action: store.refresh) {
@@ -72,8 +74,8 @@ struct UsageDashboard: View {
                         }
                         Text(
                             store.isRefreshing
-                                ? "Updating…"
-                                : store.snapshot.updateDescription(reference: context.date)
+                                ? language.text("Updating…", "正在更新…")
+                                : updateDescription(reference: context.date)
                         )
                     }
                     .font(.caption)
@@ -81,59 +83,177 @@ struct UsageDashboard: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(store.isRefreshing)
-                .help("Refresh from local Codex logs")
+                .help(language.text("Refresh from local Codex logs", "读取本机 Codex 日志"))
             }
+        }
+    }
+
+    private var settingsMenu: some View {
+        Menu {
+            Text(language.text("Language / 语言", "语言 / Language"))
+            ForEach(AppLanguage.allCases) { option in
+                Button {
+                    languageValue = option.rawValue
+                } label: {
+                    selectionLabel(option.title, selected: language == option)
+                }
+            }
+
+            Divider()
+            Text(language.text("Appearance", "外观"))
+            ForEach(AppearanceMode.allCases) { mode in
+                Button {
+                    appearanceModeValue = mode.rawValue
+                } label: {
+                    selectionLabel(mode.title(language: language), selected: appearanceMode == mode)
+                }
+            }
+
+            Divider()
+            Toggle(isOn: $store.automaticRefreshEnabled) {
+                Label(
+                    language.text("Smart auto-refresh", "智能自动刷新"),
+                    systemImage: "bolt.horizontal.circle"
+                )
+            }
+            Toggle(isOn: $store.resetReminderEnabled) {
+                Label(
+                    language.text("Reset reminder", "重置提醒"),
+                    systemImage: "bell"
+                )
+            }
+        } label: {
+            Image(systemName: "gearshape.fill")
+                .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(language.text("Settings", "设置"))
+    }
+
+    @ViewBuilder
+    private func selectionLabel(_ title: String, selected: Bool) -> some View {
+        if selected {
+            Label(title, systemImage: "checkmark")
+        } else {
+            Text(title)
+        }
+    }
+
+    @ViewBuilder
+    private var accountSection: some View {
+        if let account = store.snapshot.account {
+            HStack(spacing: 10) {
+                Text(account.initials)
+                    .font(.caption2.bold())
+                    .foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        LinearGradient(
+                            colors: [.orange.opacity(0.9), .brown.opacity(0.75)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: Circle()
+                    )
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(account.name)
+                        .font(.callout.weight(.semibold))
+                        .lineLimit(1)
+                    Text(account.email)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+                if let plan = account.plan, !plan.isEmpty {
+                    Text(plan.uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(.primary.opacity(0.08), in: Capsule())
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .cardBackground()
+        } else {
+            Label(
+                language.text("Local Codex account not found", "未找到本机 Codex 账号"),
+                systemImage: "person.crop.circle.badge.questionmark"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardBackground()
         }
     }
 
     @ViewBuilder
     private var allowanceSection: some View {
-        if store.snapshot.fiveHour != nil || store.snapshot.weekly != nil {
-            HStack(spacing: 10) {
-                if let limit = store.snapshot.fiveHour {
-                    AllowanceCard(limit: limit)
-                }
-                if let limit = store.snapshot.weekly {
-                    AllowanceCard(limit: limit)
-                }
+        if let limit = store.snapshot.weekly {
+            TimelineView(.periodic(from: .now, by: 60)) { _ in
+                AllowanceCard(
+                    limit: limit,
+                    language: language,
+                    reminderEnabled: $store.resetReminderEnabled
+                )
             }
         } else {
-            Label("No allowance data found in recent local logs", systemImage: "info.circle")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
+            Label(
+                language.text(
+                    "No weekly allowance data found in recent local logs",
+                    "最近的本机日志中没有每周额度数据"
+                ),
+                systemImage: "info.circle"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardBackground()
         }
     }
 
     private var summaryCards: some View {
         HStack(spacing: 10) {
             MetricCard(
-                title: "Today",
+                title: language.text("Today", "今日消耗"),
                 value: store.snapshot.today.total,
-                tint: .blue,
+                tint: .green,
                 comparison: UsageComparison(
                     current: store.snapshot.today.total,
                     previous: store.snapshot.yesterday.total,
-                    currentPeriod: "Today",
-                    period: "yesterday",
-                    previousPeriodTitle: "Yesterday"
-                )
+                    currentPeriod: language.text("Today", "今日"),
+                    period: language.text("yesterday", "昨日"),
+                    previousPeriodTitle: language.text("Yesterday", "昨日"),
+                    language: language
+                ),
+                language: language
             )
             MetricCard(
-                title: "This week",
+                title: language.text("This week", "本周消耗"),
                 value: store.snapshot.week.total,
-                tint: .green,
+                tint: .blue,
                 comparison: UsageComparison(
                     current: store.snapshot.week.total,
                     previous: store.snapshot.previousWeek.total,
-                    currentPeriod: "This week",
-                    period: "last week",
-                    previousPeriodTitle: "Same period last week"
-                )
+                    currentPeriod: language.text("This week to date", "本周一至今"),
+                    period: language.text("last week", "上周"),
+                    previousPeriodTitle: language.text("Same period last week", "上周同期"),
+                    language: language
+                ),
+                language: language
             )
-            MetricCard(title: "All local", value: store.snapshot.allTime.total, tint: .purple)
+            MetricCard(
+                title: language.text("All local", "本机总量"),
+                value: store.snapshot.allTime.total,
+                tint: .purple,
+                language: language
+            )
         }
     }
 
@@ -141,14 +261,14 @@ struct UsageDashboard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("All-local composition")
+                    Text(language.text("All-local composition", "本机 Token 构成"))
                         .font(.headline)
-                    Text("Input, cache, and output share")
+                    Text(language.text("Input, cache, and output share", "普通输入、缓存输入与输出占比"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text(String(format: "~%.2f credits", store.snapshot.estimatedCredits))
+                Text(String(format: "≈ %.2f credits", store.snapshot.estimatedCredits))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -156,7 +276,8 @@ struct UsageDashboard: View {
             HStack(spacing: 18) {
                 TokenDonut(
                     total: store.snapshot.allTime.compositionTotal,
-                    segments: compositionSegments
+                    segments: compositionSegments,
+                    language: language
                 )
                 .frame(width: 126, height: 126)
 
@@ -172,77 +293,126 @@ struct UsageDashboard: View {
             }
         }
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(.quaternary.opacity(0.5))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(.white.opacity(0.07))
-                }
-        )
+        .cardBackground(cornerRadius: 14)
     }
 
     private var compositionSegments: [CompositionSegment] {
         let totals = store.snapshot.allTime
         return [
-            CompositionSegment(name: "Input", value: totals.uncachedInput, color: .pink),
-            CompositionSegment(name: "Cached", value: totals.cachedInput, color: .purple),
-            CompositionSegment(name: "Output", value: totals.output, color: .orange)
+            CompositionSegment(
+                id: "input",
+                name: language.text("Input", "普通输入"),
+                value: totals.uncachedInput,
+                color: .pink
+            ),
+            CompositionSegment(
+                id: "cached",
+                name: language.text("Cached", "缓存输入"),
+                value: totals.cachedInput,
+                color: .purple
+            ),
+            CompositionSegment(
+                id: "output",
+                name: language.text("Output", "输出"),
+                value: totals.output,
+                color: .orange
+            )
         ]
     }
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("\(store.snapshot.eventsCounted.formatted()) usage events · \(store.snapshot.filesScanned.formatted()) session files")
-            Text("Updated \(store.snapshot.updatedAt, style: .relative). Official Codex usage remains authoritative.")
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(store.automaticRefreshEnabled ? Color.green : Color.secondary)
+                    .frame(width: 6, height: 6)
+                Text(
+                    store.automaticRefreshEnabled
+                        ? language.text("Smart refresh is active", "智能刷新已开启")
+                        : language.text("Smart refresh is off", "智能刷新已关闭")
+                )
+            }
+            Text(
+                language.text(
+                    "\(store.snapshot.eventsCounted.formatted()) usage events · \(store.snapshot.filesScanned.formatted()) session files",
+                    "\(store.snapshot.eventsCounted.formatted()) 条用量记录 · \(store.snapshot.filesScanned.formatted()) 个会话文件"
+                )
+            )
+            Text(
+                language.text(
+                    "Last refresh: \(updateDescription(reference: .now)). Official Codex usage remains authoritative.",
+                    "最近刷新：\(updateDescription(reference: .now))。请以 Codex 官方用量为准。"
+                )
+            )
         }
         .font(.caption2)
         .foregroundStyle(.secondary)
     }
+
+    private func updateDescription(reference: Date) -> String {
+        let age = max(0, reference.timeIntervalSince(store.snapshot.updatedAt))
+        if age < 45 { return language.text("Just updated", "刚刚更新") }
+        if age < 3_600 {
+            return language.text(
+                "\(max(1, Int(age / 60))) min ago",
+                "\(max(1, Int(age / 60))) 分钟前"
+            )
+        }
+        if age < 86_400 {
+            return language.text(
+                "\(max(1, Int(age / 3_600))) hr ago",
+                "\(max(1, Int(age / 3_600))) 小时前"
+            )
+        }
+        return store.snapshot.updatedAt.formatted(date: .abbreviated, time: .shortened)
+    }
 }
 
 private enum AppearanceMode: String, CaseIterable, Identifiable {
-    case system
     case light
     case dark
 
     var id: String { rawValue }
 
-    var title: String {
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .system: "System"
-        case .light: "Light"
-        case .dark: "Dark"
+        case .light: language.text("Light", "浅色")
+        case .dark: language.text("Dark", "深色")
         }
     }
 
-    var icon: String {
+    var colorScheme: ColorScheme {
         switch self {
-        case .system: "circle.lefthalf.filled"
-        case .light: "sun.max.fill"
-        case .dark: "moon.fill"
-        }
-    }
-
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .system: nil
         case .light: .light
         case .dark: .dark
         }
     }
 }
 
+private extension View {
+    func cardBackground(cornerRadius: CGFloat = 12) -> some View {
+        background(
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(.primary.opacity(0.045))
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .strokeBorder(.primary.opacity(0.16), lineWidth: 1)
+                }
+        )
+    }
+}
+
 private struct CompositionSegment: Identifiable {
+    let id: String
     let name: String
     let value: Int
     let color: Color
-    var id: String { name }
 }
 
 private struct TokenDonut: View {
     let total: Int
     let segments: [CompositionSegment]
+    let language: AppLanguage
 
     private var nonZeroSegments: [(segment: CompositionSegment, start: Double, end: Double)] {
         guard total > 0 else { return [] }
@@ -259,21 +429,15 @@ private struct TokenDonut: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(.secondary.opacity(0.12), lineWidth: 17)
+                .stroke(.secondary.opacity(0.14), lineWidth: 17)
 
             ForEach(Array(nonZeroSegments.enumerated()), id: \.offset) { _, item in
                 let gap = min(0.012, max(0, (item.end - item.start) * 0.18))
                 Circle()
-                    .trim(
-                        from: min(1, item.start + gap),
-                        to: max(0, item.end - gap)
-                    )
+                    .trim(from: min(1, item.start + gap), to: max(0, item.end - gap))
                     .stroke(
                         AngularGradient(
-                            colors: [
-                                item.segment.color.opacity(0.72),
-                                item.segment.color
-                            ],
+                            colors: [item.segment.color.opacity(0.72), item.segment.color],
                             center: .center
                         ),
                         style: StrokeStyle(lineWidth: 17, lineCap: .round)
@@ -283,24 +447,24 @@ private struct TokenDonut: View {
             }
 
             Circle()
-                .fill(.background.opacity(0.78))
+                .fill(.background.opacity(0.92))
                 .frame(width: 82, height: 82)
                 .overlay {
-                    Circle().strokeBorder(.white.opacity(0.06))
+                    Circle().strokeBorder(.primary.opacity(0.1))
                 }
 
             VStack(spacing: 2) {
                 Text(TokenFormatter.compact(total))
                     .font(.title3.bold().monospacedDigit())
                     .minimumScaleFactor(0.7)
-                Text("total tokens")
+                Text(language.text("total tokens", "全部 Token"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
         .padding(5)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Total tokens")
+        .accessibilityLabel(language.text("Total tokens", "Token 总量"))
         .accessibilityValue(total.formatted())
     }
 }
@@ -332,11 +496,14 @@ private struct CompositionLegendRow: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.tertiary)
         }
+        .help("\(segment.value.formatted()) tokens")
     }
 }
 
 private struct AllowanceCard: View {
     let limit: RateWindow
+    let language: AppLanguage
+    @Binding var reminderEnabled: Bool
 
     private var forecast: RateForecast {
         limit.forecast()
@@ -365,33 +532,105 @@ private struct AllowanceCard: View {
         }
     }
 
+    private var forecastLabel: String {
+        switch forecast.state {
+        case .learning: language.text("Learning", "学习中")
+        case .likelySafe: language.text("On track", "预计充足")
+        case .atRisk: language.text("At risk", "可能用尽")
+        case .stale: language.text("Waiting", "等待更新")
+        }
+    }
+
+    private var forecastHelp: String {
+        switch forecast.state {
+        case .learning:
+            language.text(
+                "More activity is needed before a useful estimate can be calculated.",
+                "需要更多使用记录才能给出可靠预测。"
+            )
+        case .likelySafe:
+            language.text(
+                "At the current pace, the allowance is likely to last until reset.",
+                "按照当前速度，额度预计可持续到重置。"
+            )
+        case .atRisk:
+            language.text(
+                "At the current pace, the allowance may run out before reset.",
+                "按照当前速度，额度可能在重置前用尽。"
+            )
+        case .stale:
+            language.text(
+                "The estimate will update after the next Codex request.",
+                "下次使用 Codex 后将更新额度信息。"
+            )
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(limit.title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text("\(Int(limit.remainingPercent.rounded()))%")
-                .font(.title2.bold().monospacedDigit())
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(language.text("Weekly allowance", "本周剩余"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text("\(Int(limit.remainingPercent.rounded()))%")
+                        .font(.title.bold().monospacedDigit())
+                }
+                Spacer()
+                HStack(spacing: 7) {
+                    Button {
+                        reminderEnabled.toggle()
+                    } label: {
+                        Image(systemName: reminderEnabled ? "bell.fill" : "bell")
+                            .foregroundStyle(reminderEnabled ? Color.orange : Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(
+                        reminderEnabled
+                            ? language.text("Reset reminder is on", "重置提醒已开启")
+                            : language.text("Remind me 10 minutes before reset", "重置前 10 分钟提醒")
+                    )
+
+                    Label(forecastLabel, systemImage: forecastIcon)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(forecastTint)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(forecastTint.opacity(0.12), in: Capsule())
+                }
+            }
+
             ProgressView(value: limit.remainingPercent, total: 100)
                 .tint(tint)
-            HStack(spacing: 6) {
-                Label(limit.resetCountdown(), systemImage: "clock.arrow.circlepath")
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 2)
-                Label(forecast.label, systemImage: forecastIcon)
-                    .foregroundStyle(forecastTint)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(forecastTint.opacity(0.11), in: Capsule())
-            }
-            .font(.caption2)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .help("\(limit.resetDescription())\n\(forecast.detail)")
+
+            Label(
+                resetText,
+                systemImage: "clock.arrow.circlepath"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(tint.opacity(0.11), in: RoundedRectangle(cornerRadius: 12))
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(tint.opacity(0.075))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(.primary.opacity(0.18), lineWidth: 1)
+                }
+        )
+        .help(forecastHelp)
+    }
+
+    private var resetText: String {
+        let remaining = limit.resetsAt.timeIntervalSince(.now)
+        guard remaining > 0 else {
+            return language.text("Waiting for fresh reset data", "等待新的重置数据")
+        }
+        return language.text(
+            "Resets in \(limit.resetCountdown())",
+            "\(limit.resetCountdown()) 后重置"
+        )
     }
 }
 
@@ -400,11 +639,12 @@ private struct MetricCard: View {
     let value: Int
     let tint: Color
     var comparison: UsageComparison?
+    let language: AppLanguage
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 5) {
             Text(title)
-                .font(.caption2)
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text(TokenFormatter.compact(value))
                 .font(.headline.monospacedDigit())
@@ -413,10 +653,10 @@ private struct MetricCard: View {
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(comparison.tint)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                    .minimumScaleFactor(0.68)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 3)
-                    .background(comparison.tint.opacity(0.11), in: Capsule())
+                    .background(comparison.tint.opacity(0.12), in: Capsule())
                     .help(comparison.help)
             } else {
                 Text("tokens")
@@ -427,7 +667,14 @@ private struct MetricCard: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+        .background(
+            RoundedRectangle(cornerRadius: 11)
+                .fill(tint.opacity(0.1))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 11)
+                        .strokeBorder(.primary.opacity(0.13))
+                }
+        )
         .help(comparison?.help ?? "\(title): \(value.formatted()) tokens")
     }
 }
@@ -438,6 +685,7 @@ private struct UsageComparison {
     let currentPeriod: String
     let period: String
     let previousPeriodTitle: String
+    let language: AppLanguage
 
     private var change: Double? {
         guard previous > 0 else { return nil }
@@ -446,9 +694,15 @@ private struct UsageComparison {
 
     var label: String {
         guard let change else {
-            return current > 0 ? "New vs \(period)" : "No change"
+            return current > 0
+                ? language.text("New", "新增")
+                : language.text("No change", "无变化")
         }
-        return "\(Int(abs(change).rounded()))% vs \(period)"
+        let rounded = Int(abs(change).rounded())
+        let percent = rounded > 999 ? "999%+" : "\(rounded)%"
+        return language == .chinese
+            ? "\(percent) 较\(period)"
+            : "\(percent) vs \(period)"
     }
 
     var icon: String {
@@ -471,7 +725,7 @@ private struct UsageComparison {
         return """
         \(currentPeriod): \(current.formatted()) tokens
         \(previousPeriodTitle): \(previous.formatted()) tokens
-        Difference: \(sign)\(difference.formatted()) tokens
+        \(language.text("Difference", "差值")): \(sign)\(difference.formatted()) tokens
         """
     }
 }
