@@ -5,6 +5,41 @@ enum AppSettings {
     static let languageKey = "appLanguage"
     static let automaticRefreshKey = "automaticRefreshEnabled"
     static let resetReminderKey = "resetReminderEnabled"
+    static let accountPlanKey = "accountPlanOverride"
+}
+
+enum AccountPlanMode: String, CaseIterable, Identifiable {
+    case automatic
+    case free
+    case plus
+    case pro
+
+    var id: String { rawValue }
+
+    func title(language: AppLanguage, detectedPlan: String? = nil) -> String {
+        switch self {
+        case .automatic:
+            if let detectedPlan, !detectedPlan.isEmpty {
+                return language.text(
+                    "Automatic (\(detectedPlan.uppercased()))",
+                    "自动（\(detectedPlan.uppercased())）"
+                )
+            }
+            return language.text("Automatic", "自动")
+        case .free: return "FREE"
+        case .plus: return "PLUS"
+        case .pro: return "PRO"
+        }
+    }
+
+    func resolvedPlan(detectedPlan: String?) -> String? {
+        switch self {
+        case .automatic: detectedPlan?.uppercased()
+        case .free: "FREE"
+        case .plus: "PLUS"
+        case .pro: "PRO"
+        }
+    }
 }
 
 enum AppLanguage: String, CaseIterable, Identifiable {
