@@ -25,10 +25,6 @@ struct RateWindow: Sendable, Equatable {
 
     var remainingPercent: Double { max(0, min(100, 100 - usedPercent)) }
 
-    var title: String {
-        windowMinutes <= 300 ? "5-hour allowance" : "Weekly allowance"
-    }
-
     func resetDescription(reference: Date = .now) -> String {
         let clock = resetsAt.formatted(date: .omitted, time: .shortened)
         let remaining = resetsAt.timeIntervalSince(reference)
@@ -134,13 +130,13 @@ struct UsageSnapshot: Sendable, Equatable {
     let week: TokenTotals
     let previousWeek: TokenTotals
     let allTime: TokenTotals
-    let fiveHour: RateWindow?
     let weekly: RateWindow?
+    let account: AccountInfo?
     let filesScanned: Int
     let eventsCounted: Int
     let updatedAt: Date
 
-    var preferredLimit: RateWindow? { fiveHour ?? weekly }
+    var preferredLimit: RateWindow? { weekly }
 
     func updateDescription(reference: Date = .now) -> String {
         let age = max(0, reference.timeIntervalSince(updatedAt))
@@ -163,8 +159,8 @@ struct UsageSnapshot: Sendable, Equatable {
         week: .zero,
         previousWeek: .zero,
         allTime: .zero,
-        fiveHour: nil,
         weekly: nil,
+        account: nil,
         filesScanned: 0,
         eventsCounted: 0,
         updatedAt: .now
