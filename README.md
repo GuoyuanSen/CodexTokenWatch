@@ -14,10 +14,12 @@ An independently implemented macOS 13+ menu-bar app for inspecting local Codex u
   <br>显示各额度窗口的预计重置时间，并预测是否可能在重置前用尽
 - A live freshness label and one-click refresh from local logs
   <br>显示数据更新时间，并支持一键读取最新本机日志
-- Today, this week, and all-local token totals
+- Today, this week, and all-local token totals in a compact popover
   <br>显示今日、本周及本机累计 Token 总量
-- A 14-day activity chart
-  <br>提供最近 14 天的用量趋势图
+- Compact today-versus-yesterday and week-to-date comparisons
+  <br>以简洁标签对比今日与昨日，以及本周一至今与上周同期用量
+- System, light, and dark appearance modes
+  <br>支持跟随系统、浅色和深色三种外观模式
 - Uncached input, cached input, and output composition
   <br>展示普通输入、缓存输入和输出 Token 的构成
 - A local equivalent-credit estimate
