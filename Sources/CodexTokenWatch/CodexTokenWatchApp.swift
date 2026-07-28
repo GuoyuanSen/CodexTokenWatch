@@ -1,6 +1,7 @@
 import AppKit
 import ServiceManagement
 import SwiftUI
+import UserNotifications
 
 @main
 enum CodexTokenWatchMain {
@@ -27,18 +28,20 @@ enum CodexTokenWatchMain {
 }
 
 @MainActor
-final class MenuBarCoordinator: NSObject, NSApplicationDelegate {
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+final class MenuBarCoordinator: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    private let statusItem = NSStatusBar.system.statusItem(withLength: 38)
     private let popover = NSPopover()
     private let store = UsageStore()
     private var refreshTimer: Timer?
+    private var sessionMonitor: SessionChangeMonitor?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        UNUserNotificationCenter.current().delegate = self
 
         popover.behavior = .transient
         popover.animates = true
-        popover.contentSize = NSSize(width: 420, height: 500)
+        popover.contentSize = NSSize(width: 420, height: 540)
         popover.contentViewController = NSHostingController(rootView: UsageDashboard(store: store))
 
         if let button = statusItem.button {
@@ -50,17 +53,25 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate {
         store.onSnapshotChange = { [weak self] snapshot in
             self?.updateStatusItem(with: snapshot)
         }
-        store.refresh()
-
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.store.refresh() }
+        store.onAutomaticRefreshChange = { [weak self] enabled in
+            self?.configureAutomaticRefresh(enabled: enabled)
         }
+        store.refresh()
+        configureAutomaticRefresh(enabled: store.automaticRefreshEnabled)
     }
 
     func applicationDidResignActive(_ notification: Notification) {
         if popover.isShown {
             popover.performClose(nil)
         }
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 
     @objc private func statusItemPressed() {
@@ -84,18 +95,31 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate {
     }
 
     private func showContextMenu() {
+        let language = AppLanguage.current
         let menu = NSMenu()
-        let refresh = NSMenuItem(title: "Refresh now", action: #selector(refreshNow), keyEquivalent: "r")
+        let refresh = NSMenuItem(
+            title: language.text("Refresh now", "立即刷新"),
+            action: #selector(refreshNow),
+            keyEquivalent: "r"
+        )
         refresh.target = self
         menu.addItem(refresh)
 
-        let launch = NSMenuItem(title: "Launch at login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        let launch = NSMenuItem(
+            title: language.text("Launch at login", "登录时启动"),
+            action: #selector(toggleLaunchAtLogin),
+            keyEquivalent: ""
+        )
         launch.target = self
         launch.state = launchAtLoginEnabled ? .on : .off
         menu.addItem(launch)
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "Quit CodexTokenWatch", action: #selector(quitApp), keyEquivalent: "q")
+        let quit = NSMenuItem(
+            title: language.text("Quit CodexTokenWatch", "退出 CodexTokenWatch"),
+            action: #selector(quitApp),
+            keyEquivalent: "q"
+        )
         quit.target = self
         menu.addItem(quit)
         statusItem.menu = menu
@@ -129,17 +153,44 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate {
         return SMAppService.mainApp.status == .enabled
     }
 
+    private func configureAutomaticRefresh(enabled: Bool) {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+        sessionMonitor?.stop()
+        sessionMonitor = nil
+
+        guard enabled else { return }
+        let monitor = SessionChangeMonitor { [weak self] in
+            Task { @MainActor in
+                self?.store.refresh()
+            }
+        }
+        sessionMonitor = monitor
+        monitor.start()
+
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.store.refresh() }
+        }
+    }
+
     private func updateStatusItem(with snapshot: UsageSnapshot) {
         let remaining = snapshot.preferredLimit?.remainingPercent
         statusItem.button?.image = StatusLightImage.make(for: remaining)
-        statusItem.button?.imagePosition = .imageLeft
+        statusItem.button?.imagePosition = .imageOnly
+        statusItem.button?.title = ""
 
         if let remaining {
-            statusItem.button?.title = "\(Int(remaining.rounded()))%"
-            statusItem.button?.toolTip = "Codex allowance remaining"
+            let language = AppLanguage.current
+            statusItem.button?.toolTip = language.text(
+                "\(Int(remaining.rounded()))% weekly allowance remaining",
+                "每周额度剩余 \(Int(remaining.rounded()))%"
+            )
         } else {
-            statusItem.button?.title = TokenFormatter.compact(snapshot.week.total)
-            statusItem.button?.toolTip = "Codex tokens recorded this week"
+            let language = AppLanguage.current
+            statusItem.button?.toolTip = language.text(
+                "\(TokenFormatter.compact(snapshot.week.total)) tokens recorded this week",
+                "本周已记录 \(TokenFormatter.compact(snapshot.week.total)) Token"
+            )
         }
     }
 }
