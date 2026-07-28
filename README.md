@@ -12,8 +12,8 @@ An independently implemented macOS 13+ menu-bar app for inspecting local Codex u
   <br>根据剩余额度显示绿、黄、红三色菜单栏状态指示灯
 - Reset-time and projected run-out guidance for each allowance window
   <br>显示各额度窗口的预计重置时间，并预测是否可能在重置前用尽
-- Smart local-log change detection and manual refresh
-  <br>智能感知本机日志变化，并支持手动刷新
+- Smart local-log change detection, manual refresh, and an optional timed fallback that defaults to 5 minutes and supports a custom 1–1440 minute interval
+  <br>智能感知本机日志变化并支持手动刷新；定时兜底刷新默认每 5 分钟执行，也可关闭或自定义为 1–1440 分钟
 - Today, this week, and all-local token totals in a compact popover
   <br>显示今日、本周及本机累计 Token 总量
 - Comparable-period usage: today versus the same time yesterday, and Monday-to-date versus the same period last week
@@ -71,6 +71,10 @@ The default build uses an ad-hoc signature for local testing. Set `CODESIGN_IDEN
 The scanner uses incremental `last_token_usage` events and rate-limit windows from Codex JSONL logs. Values are estimates: local files may be incomplete and Codex may change its log format. Official Codex usage remains authoritative.
 
 扫描器使用 Codex JSONL 日志中的增量 `last_token_usage` 事件和速率限制窗口。统计结果仅供估算：本地文件可能不完整，Codex 也可能调整日志格式，请以 Codex 官方用量数据为准。
+
+Refresh requests are coalesced safely: if a log change arrives during a scan, one follow-up scan runs after the current scan completes. The timed interval restarts after every successful smart, manual, or timed refresh to avoid redundant work.
+
+刷新请求会安全合并：如果扫描期间又检测到日志变化，当前扫描完成后会自动补扫一次。每次智能、手动或定时刷新成功后都会重新计算定时间隔，避免重复扫描。
 
 ## Privacy
 
