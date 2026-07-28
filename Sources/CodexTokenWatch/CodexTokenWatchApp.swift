@@ -29,10 +29,9 @@ enum CodexTokenWatchMain {
 
 @MainActor
 final class MenuBarCoordinator: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
-    private let statusItem = NSStatusBar.system.statusItem(withLength: 38)
+    private let statusItem = NSStatusBar.system.statusItem(withLength: 34)
     private let popover = NSPopover()
     private let store = UsageStore()
-    private var refreshTimer: Timer?
     private var sessionMonitor: SessionChangeMonitor?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -154,8 +153,6 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate, UNUserNotificat
     }
 
     private func configureAutomaticRefresh(enabled: Bool) {
-        refreshTimer?.invalidate()
-        refreshTimer = nil
         sessionMonitor?.stop()
         sessionMonitor = nil
 
@@ -167,10 +164,6 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate, UNUserNotificat
         }
         sessionMonitor = monitor
         monitor.start()
-
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.store.refresh() }
-        }
     }
 
     private func updateStatusItem(with snapshot: UsageSnapshot) {
@@ -198,13 +191,30 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate, UNUserNotificat
 enum StatusLightImage {
     static func make(for remaining: Double?) -> NSImage {
         let level = LimitLevel(remainingPercent: remaining)
-        let size = NSSize(width: 34, height: 12)
+        let size = NSSize(width: 30, height: 14)
         let image = NSImage(size: size, flipped: false) { _ in
+            let capsuleRect = NSRect(x: 0.75, y: 0.75, width: 28.5, height: 12.5)
+            let capsule = NSBezierPath(
+                roundedRect: capsuleRect,
+                xRadius: 6.25,
+                yRadius: 6.25
+            )
+            NSColor.black.withAlphaComponent(0.32).setFill()
+            capsule.fill()
+            NSColor.secondaryLabelColor.withAlphaComponent(0.62).setStroke()
+            capsule.lineWidth = 1.5
+            capsule.stroke()
+
             let colors: [NSColor] = [.systemGreen, .systemYellow, .systemRed]
             for index in 0..<3 {
-                let rect = NSRect(x: CGFloat(index * 11) + 1, y: 1, width: 9, height: 9)
+                let rect = NSRect(
+                    x: CGFloat(index * 7) + 5.5,
+                    y: 4.5,
+                    width: 5,
+                    height: 5
+                )
                 let active = level.activeIndex == index
-                (active ? colors[index] : colors[index].withAlphaComponent(0.2)).setFill()
+                (active ? colors[index] : colors[index].withAlphaComponent(0.23)).setFill()
                 NSBezierPath(ovalIn: rect).fill()
             }
             return true
