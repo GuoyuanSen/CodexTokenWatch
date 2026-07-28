@@ -18,12 +18,6 @@ struct TokenTotals: Sendable, Equatable {
     static let zero = TokenTotals()
 }
 
-struct UsagePoint: Identifiable, Sendable, Equatable {
-    let date: Date
-    let tokens: Int
-    var id: Date { date }
-}
-
 struct RateWindow: Sendable, Equatable {
     let usedPercent: Double
     let windowMinutes: Int
@@ -136,9 +130,10 @@ struct RateForecast: Sendable, Equatable {
 
 struct UsageSnapshot: Sendable, Equatable {
     let today: TokenTotals
+    let yesterday: TokenTotals
     let week: TokenTotals
+    let previousWeek: TokenTotals
     let allTime: TokenTotals
-    let daily: [UsagePoint]
     let fiveHour: RateWindow?
     let weekly: RateWindow?
     let filesScanned: Int
@@ -164,9 +159,10 @@ struct UsageSnapshot: Sendable, Equatable {
 
     static let empty = UsageSnapshot(
         today: .zero,
+        yesterday: .zero,
         week: .zero,
+        previousWeek: .zero,
         allTime: .zero,
-        daily: [],
         fiveHour: nil,
         weekly: nil,
         filesScanned: 0,
