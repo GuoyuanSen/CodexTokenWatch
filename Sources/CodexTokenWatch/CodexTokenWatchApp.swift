@@ -38,7 +38,7 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate {
 
         popover.behavior = .transient
         popover.animates = true
-        popover.contentSize = NSSize(width: 420, height: 610)
+        popover.contentSize = NSSize(width: 420, height: 500)
         popover.contentViewController = NSHostingController(rootView: UsageDashboard(store: store))
 
         if let button = statusItem.button {
@@ -57,6 +57,12 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationDidResignActive(_ notification: Notification) {
+        if popover.isShown {
+            popover.performClose(nil)
+        }
+    }
+
     @objc private func statusItemPressed() {
         guard let event = NSApp.currentEvent else { return }
         if event.type == .rightMouseUp {
@@ -72,6 +78,7 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate {
             popover.performClose(nil)
         } else {
             store.refresh()
+            NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
     }
