@@ -41,6 +41,19 @@ To build an optimized binary:
 swift build -c release
 ```
 
+Create a signed `.app` bundle and a compressed DMG:
+
+创建已签名的 `.app` 应用包和压缩 DMG：
+
+```sh
+./scripts/build-app.sh
+./scripts/build-dmg.sh
+```
+
+The default build uses an ad-hoc signature for local testing. Set `CODESIGN_IDENTITY` to a Developer ID Application identity when preparing a notarized public release.
+
+默认构建使用临时签名，适合本地测试。准备经过 Apple 公证的公开版本时，请将 `CODESIGN_IDENTITY` 设置为 Developer ID Application 证书名称。
+
 The scanner uses incremental `last_token_usage` events and rate-limit windows from Codex JSONL logs. Values are estimates: local files may be incomplete and Codex may change its log format. Official Codex usage remains authoritative.
 
 扫描器使用 Codex JSONL 日志中的增量 `last_token_usage` 事件和速率限制窗口。统计结果仅供估算：本地文件可能不完整，Codex 也可能调整日志格式，请以 Codex 官方用量数据为准。
