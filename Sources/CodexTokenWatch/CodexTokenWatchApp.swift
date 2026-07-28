@@ -33,6 +33,7 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate, UNUserNotificat
     private let popover = NSPopover()
     private let store = UsageStore()
     private var sessionMonitor: SessionChangeMonitor?
+    private var periodicRefreshTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -51,12 +52,20 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate, UNUserNotificat
 
         store.onSnapshotChange = { [weak self] snapshot in
             self?.updateStatusItem(with: snapshot)
+            self?.restartPeriodicRefreshCountdown()
         }
         store.onAutomaticRefreshChange = { [weak self] enabled in
             self?.configureAutomaticRefresh(enabled: enabled)
         }
+        store.onPeriodicRefreshChange = { [weak self] enabled, minutes in
+            self?.configurePeriodicRefresh(enabled: enabled, minutes: minutes)
+        }
         store.refresh()
         configureAutomaticRefresh(enabled: store.automaticRefreshEnabled)
+        configurePeriodicRefresh(
+            enabled: store.periodicRefreshEnabled,
+            minutes: store.periodicRefreshMinutes
+        )
     }
 
     func applicationDidResignActive(_ notification: Notification) {
@@ -164,6 +173,36 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate, UNUserNotificat
         }
         sessionMonitor = monitor
         monitor.start()
+    }
+
+    private func configurePeriodicRefresh(enabled: Bool, minutes: Int) {
+        periodicRefreshTimer?.invalidate()
+        periodicRefreshTimer = nil
+
+        guard enabled else { return }
+        let interval = TimeInterval(minutes * 60)
+        let timer = Timer(
+            timeInterval: interval,
+            target: self,
+            selector: #selector(periodicRefreshFired),
+            userInfo: nil,
+            repeats: true
+        )
+        timer.tolerance = min(30, interval * 0.1)
+        periodicRefreshTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    @objc private func periodicRefreshFired() {
+        store.refresh()
+    }
+
+    private func restartPeriodicRefreshCountdown() {
+        guard store.periodicRefreshEnabled else { return }
+        configurePeriodicRefresh(
+            enabled: true,
+            minutes: store.periodicRefreshMinutes
+        )
     }
 
     private func updateStatusItem(with snapshot: UsageSnapshot) {
