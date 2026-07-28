@@ -4,6 +4,7 @@ struct UsageDashboard: View {
     @ObservedObject var store: UsageStore
     @AppStorage(AppSettings.appearanceKey) private var appearanceModeValue = AppearanceMode.dark.rawValue
     @AppStorage(AppSettings.languageKey) private var languageValue = AppLanguage.english.rawValue
+    @AppStorage(AppSettings.accountPlanKey) private var accountPlanValue = AccountPlanMode.automatic.rawValue
 
     private var appearanceMode: AppearanceMode {
         AppearanceMode(rawValue: appearanceModeValue) ?? .dark
@@ -11,6 +12,10 @@ struct UsageDashboard: View {
 
     private var language: AppLanguage {
         AppLanguage(rawValue: languageValue) ?? .english
+    }
+
+    private var accountPlanMode: AccountPlanMode {
+        AccountPlanMode(rawValue: accountPlanValue) ?? .automatic
     }
 
     var body: some View {
@@ -100,6 +105,22 @@ struct UsageDashboard: View {
             }
 
             Divider()
+            Text(language.text("Account plan", "账号套餐"))
+            ForEach(AccountPlanMode.allCases) { mode in
+                Button {
+                    accountPlanValue = mode.rawValue
+                } label: {
+                    selectionLabel(
+                        mode.title(
+                            language: language,
+                            detectedPlan: store.snapshot.account?.plan
+                        ),
+                        selected: accountPlanMode == mode
+                    )
+                }
+            }
+
+            Divider()
             Text(language.text("Appearance", "外观"))
             ForEach(AppearanceMode.allCases) { mode in
                 Button {
@@ -168,12 +189,36 @@ struct UsageDashboard: View {
                 }
 
                 Spacer()
-                if let plan = account.plan, !plan.isEmpty {
-                    Text(plan.uppercased())
-                        .font(.system(size: 9, weight: .bold))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 4)
-                        .background(.primary.opacity(0.08), in: Capsule())
+                if let plan = accountPlanMode.resolvedPlan(detectedPlan: account.plan) {
+                    Menu {
+                        ForEach(AccountPlanMode.allCases) { mode in
+                            Button {
+                                accountPlanValue = mode.rawValue
+                            } label: {
+                                selectionLabel(
+                                    mode.title(
+                                        language: language,
+                                        detectedPlan: account.plan
+                                    ),
+                                    selected: accountPlanMode == mode
+                                )
+                            }
+                        }
+                    } label: {
+                        Text(plan)
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(.primary.opacity(0.08), in: Capsule())
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help(
+                        language.text(
+                            "Choose a plan when the local Codex token is stale",
+                            "本机 Codex 登录字段过期时可手动选择套餐"
+                        )
+                    )
                 }
             }
             .padding(.horizontal, 12)
