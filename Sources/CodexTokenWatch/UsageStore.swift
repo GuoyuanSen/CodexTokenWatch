@@ -14,6 +14,32 @@ final class UsageStore: ObservableObject {
             onAutomaticRefreshChange?(automaticRefreshEnabled)
         }
     }
+    @Published var periodicRefreshEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                periodicRefreshEnabled,
+                forKey: AppSettings.periodicRefreshEnabledKey
+            )
+            onPeriodicRefreshChange?(periodicRefreshEnabled, periodicRefreshMinutes)
+        }
+    }
+    @Published var periodicRefreshMinutes: Int {
+        didSet {
+            let validValue = min(
+                AppSettings.maximumPeriodicRefreshMinutes,
+                max(AppSettings.minimumPeriodicRefreshMinutes, periodicRefreshMinutes)
+            )
+            guard periodicRefreshMinutes == validValue else {
+                periodicRefreshMinutes = validValue
+                return
+            }
+            UserDefaults.standard.set(
+                periodicRefreshMinutes,
+                forKey: AppSettings.periodicRefreshMinutesKey
+            )
+            onPeriodicRefreshChange?(periodicRefreshEnabled, periodicRefreshMinutes)
+        }
+    }
     @Published var resetReminderEnabled: Bool {
         didSet {
             UserDefaults.standard.set(resetReminderEnabled, forKey: AppSettings.resetReminderKey)
@@ -21,20 +47,37 @@ final class UsageStore: ObservableObject {
         }
     }
     private let scanner = LocalLogScanner()
+    private var refreshPending = false
 
     var onSnapshotChange: ((UsageSnapshot) -> Void)?
     var onAutomaticRefreshChange: ((Bool) -> Void)?
+    var onPeriodicRefreshChange: ((Bool, Int) -> Void)?
 
     init() {
         let defaults = UserDefaults.standard
         automaticRefreshEnabled = defaults.object(forKey: AppSettings.automaticRefreshKey) == nil
             ? true
             : defaults.bool(forKey: AppSettings.automaticRefreshKey)
+        periodicRefreshEnabled = defaults.object(
+            forKey: AppSettings.periodicRefreshEnabledKey
+        ) == nil
+            ? true
+            : defaults.bool(forKey: AppSettings.periodicRefreshEnabledKey)
+        let savedMinutes = defaults.object(forKey: AppSettings.periodicRefreshMinutesKey) == nil
+            ? AppSettings.defaultPeriodicRefreshMinutes
+            : defaults.integer(forKey: AppSettings.periodicRefreshMinutesKey)
+        periodicRefreshMinutes = min(
+            AppSettings.maximumPeriodicRefreshMinutes,
+            max(AppSettings.minimumPeriodicRefreshMinutes, savedMinutes)
+        )
         resetReminderEnabled = defaults.bool(forKey: AppSettings.resetReminderKey)
     }
 
     func refresh() {
-        guard !isRefreshing else { return }
+        guard !isRefreshing else {
+            refreshPending = true
+            return
+        }
         isRefreshing = true
         Task.detached(priority: .utility) { [scanner] in
             let result = scanner.scan()
@@ -43,6 +86,10 @@ final class UsageStore: ObservableObject {
                 self.isRefreshing = false
                 self.onSnapshotChange?(result)
                 self.updateResetReminder()
+                if self.refreshPending {
+                    self.refreshPending = false
+                    self.refresh()
+                }
             }
         }
     }
