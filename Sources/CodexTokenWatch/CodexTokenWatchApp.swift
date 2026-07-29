@@ -14,6 +14,8 @@ enum CodexTokenWatchMain {
                 "today=\(snapshot.today.total) " +
                 "week=\(snapshot.week.total) " +
                 "all=\(snapshot.allTime.total) " +
+                "fiveHour=\(snapshot.fiveHour?.remainingPercent ?? -1) " +
+                "weekly=\(snapshot.weekly?.remainingPercent ?? -1) " +
                 "events=\(snapshot.eventsCounted) " +
                 "files=\(snapshot.filesScanned)"
             )
@@ -214,8 +216,8 @@ final class MenuBarCoordinator: NSObject, NSApplicationDelegate, UNUserNotificat
         if let remaining {
             let language = AppLanguage.current
             statusItem.button?.toolTip = language.text(
-                "\(Int(remaining.rounded()))% weekly allowance remaining",
-                "每周额度剩余 \(Int(remaining.rounded()))%"
+                "\(Int(remaining.rounded()))% allowance remaining",
+                "额度剩余 \(Int(remaining.rounded()))%"
             )
         } else {
             let language = AppLanguage.current

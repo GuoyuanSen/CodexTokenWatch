@@ -130,13 +130,18 @@ struct UsageSnapshot: Sendable, Equatable {
     let week: TokenTotals
     let previousWeek: TokenTotals
     let allTime: TokenTotals
+    let fiveHour: RateWindow?
     let weekly: RateWindow?
     let account: AccountInfo?
     let filesScanned: Int
     let eventsCounted: Int
     let updatedAt: Date
 
-    var preferredLimit: RateWindow? { weekly }
+    var preferredLimit: RateWindow? {
+        [fiveHour, weekly]
+            .compactMap { $0 }
+            .min { $0.remainingPercent < $1.remainingPercent }
+    }
 
     func updateDescription(reference: Date = .now) -> String {
         let age = max(0, reference.timeIntervalSince(updatedAt))
@@ -159,6 +164,7 @@ struct UsageSnapshot: Sendable, Equatable {
         week: .zero,
         previousWeek: .zero,
         allTime: .zero,
+        fiveHour: nil,
         weekly: nil,
         account: nil,
         filesScanned: 0,

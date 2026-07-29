@@ -5,6 +5,7 @@ struct UsageDashboard: View {
     @AppStorage(AppSettings.appearanceKey) private var appearanceModeValue = AppearanceMode.dark.rawValue
     @AppStorage(AppSettings.languageKey) private var languageValue = AppLanguage.english.rawValue
     @AppStorage(AppSettings.accountPlanKey) private var accountPlanValue = AccountPlanMode.automatic.rawValue
+    @AppStorage(AppSettings.showFiveHourAllowanceKey) private var showFiveHourAllowance = true
     @State private var showingCustomRefreshInterval = false
     @State private var customRefreshIntervalText = ""
 
@@ -181,6 +182,15 @@ struct UsageDashboard: View {
                     )
                 }
             }
+
+            Divider()
+            Text(language.text("Allowances", "额度"))
+            Toggle(isOn: $showFiveHourAllowance) {
+                Label(
+                    language.text("Show 5-hour allowance", "显示 5 小时额度"),
+                    systemImage: "hourglass"
+                )
+            }
             Toggle(isOn: $store.resetReminderEnabled) {
                 Label(
                     language.text("Reset reminder", "重置提醒"),
@@ -345,28 +355,50 @@ struct UsageDashboard: View {
 
     @ViewBuilder
     private var allowanceSection: some View {
-        if let limit = store.snapshot.weekly {
-            TimelineView(.periodic(from: .now, by: 60)) { _ in
-                AllowanceCard(
-                    limit: limit,
-                    language: language,
-                    reminderEnabled: $store.resetReminderEnabled
-                )
+        VStack(spacing: 10) {
+            if showFiveHourAllowance,
+               let limit = store.snapshot.fiveHour {
+                TimelineView(.periodic(from: .now, by: 60)) { _ in
+                    AllowanceCard(
+                        title: shortWindowTitle(limit),
+                        limit: limit,
+                        language: language
+                    )
+                }
             }
-        } else {
-            Label(
-                language.text(
-                    "No weekly allowance data found in recent local logs",
-                    "最近的本机日志中没有每周额度数据"
-                ),
-                systemImage: "info.circle"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(11)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .cardBackground()
+
+            if let limit = store.snapshot.weekly {
+                TimelineView(.periodic(from: .now, by: 60)) { _ in
+                    AllowanceCard(
+                        title: language.text("Weekly allowance", "本周剩余"),
+                        limit: limit,
+                        language: language,
+                        reminderEnabled: $store.resetReminderEnabled
+                    )
+                }
+            } else {
+                Label(
+                    language.text(
+                        "No weekly allowance data found in recent local logs",
+                        "最近的本机日志中没有每周额度数据"
+                    ),
+                    systemImage: "info.circle"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(11)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .cardBackground()
+            }
         }
+    }
+
+    private func shortWindowTitle(_ limit: RateWindow) -> String {
+        let hours = max(1, limit.windowMinutes / 60)
+        return language.text(
+            "\(hours)-hour allowance",
+            "\(hours) 小时剩余"
+        )
     }
 
     private var summaryCards: some View {
@@ -674,9 +706,10 @@ private struct CompositionLegendRow: View {
 }
 
 private struct AllowanceCard: View {
+    let title: String
     let limit: RateWindow
     let language: AppLanguage
-    @Binding var reminderEnabled: Bool
+    var reminderEnabled: Binding<Bool>? = nil
 
     private var forecast: RateForecast {
         limit.forecast()
@@ -743,7 +776,7 @@ private struct AllowanceCard: View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(language.text("Weekly allowance", "本周剩余"))
+                    Text(title)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Text("\(Int(limit.remainingPercent.rounded()))%")
@@ -751,18 +784,31 @@ private struct AllowanceCard: View {
                 }
                 Spacer()
                 HStack(spacing: 7) {
-                    Button {
-                        reminderEnabled.toggle()
-                    } label: {
-                        Image(systemName: reminderEnabled ? "bell.fill" : "bell")
-                            .foregroundStyle(reminderEnabled ? Color.orange : Color.secondary)
+                    if let reminderEnabled {
+                        Button {
+                            reminderEnabled.wrappedValue.toggle()
+                        } label: {
+                            Image(
+                                systemName: reminderEnabled.wrappedValue
+                                    ? "bell.fill"
+                                    : "bell"
+                            )
+                            .foregroundStyle(
+                                reminderEnabled.wrappedValue
+                                    ? Color.orange
+                                    : Color.secondary
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .help(
+                            reminderEnabled.wrappedValue
+                                ? language.text("Reset reminder is on", "重置提醒已开启")
+                                : language.text(
+                                    "Remind me 10 minutes before reset",
+                                    "重置前 10 分钟提醒"
+                                )
+                        )
                     }
-                    .buttonStyle(.plain)
-                    .help(
-                        reminderEnabled
-                            ? language.text("Reset reminder is on", "重置提醒已开启")
-                            : language.text("Remind me 10 minutes before reset", "重置前 10 分钟提醒")
-                    )
 
                     Label(forecastLabel, systemImage: forecastIcon)
                         .font(.caption.weight(.semibold))

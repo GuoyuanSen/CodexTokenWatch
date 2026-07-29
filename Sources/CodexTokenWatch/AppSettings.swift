@@ -6,6 +6,7 @@ enum AppSettings {
     static let automaticRefreshKey = "automaticRefreshEnabled"
     static let periodicRefreshEnabledKey = "periodicRefreshEnabled"
     static let periodicRefreshMinutesKey = "periodicRefreshMinutes"
+    static let showFiveHourAllowanceKey = "showFiveHourAllowance"
     static let resetReminderKey = "resetReminderEnabled"
     static let accountPlanKey = "accountPlanOverride"
 

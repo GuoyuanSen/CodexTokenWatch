@@ -6,6 +6,8 @@ An independently implemented macOS 13+ menu-bar app for inspecting local Codex u
 
 ## Features
 
+- Optional 5-hour allowance card above the weekly allowance, shown only when a real 300-minute rate-limit window exists in local logs
+  <br>可在每周额度上方显示 5 小时额度卡片；仅当本地日志包含真实的 300 分钟额度窗口时出现，并可在设置中隐藏
 - Weekly allowance and reset forecast when rate-limit data exists in local logs
   <br>当本地日志中存在速率限制数据时，显示每周额度和重置预测
 - Green/yellow/red menu-bar status lights based on remaining allowance
@@ -68,9 +70,9 @@ The default build uses an ad-hoc signature for local testing. Set `CODESIGN_IDEN
 
 默认构建使用临时签名，适合本地测试。准备经过 Apple 公证的公开版本时，请将 `CODESIGN_IDENTITY` 设置为 Developer ID Application 证书名称。
 
-The scanner uses incremental `last_token_usage` events and rate-limit windows from Codex JSONL logs. Values are estimates: local files may be incomplete and Codex may change its log format. Official Codex usage remains authoritative.
+The scanner uses incremental `last_token_usage` events and rate-limit windows from Codex JSONL logs. The 5-hour card is never inferred from token totals: it appears only for an explicit 300-minute server-provided window. Values are estimates because local files may be incomplete and Codex may change its log format. Official Codex usage remains authoritative.
 
-扫描器使用 Codex JSONL 日志中的增量 `last_token_usage` 事件和速率限制窗口。统计结果仅供估算：本地文件可能不完整，Codex 也可能调整日志格式，请以 Codex 官方用量数据为准。
+扫描器使用 Codex JSONL 日志中的增量 `last_token_usage` 事件和速率限制窗口。5 小时卡片不会根据 Token 总量推算，仅在日志中存在服务端提供的明确 300 分钟窗口时显示。由于本地文件可能不完整，Codex 也可能调整日志格式，请以 Codex 官方用量数据为准。
 
 Refresh requests are coalesced safely: if a log change arrives during a scan, one follow-up scan runs after the current scan completes. The timed interval restarts after every successful smart, manual, or timed refresh to avoid redundant work.
 
